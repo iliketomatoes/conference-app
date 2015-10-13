@@ -31,14 +31,16 @@ from models import ProfileMiniForm
 from models import ProfileForm
 from models import TeeShirtSize
 
+from utils import getUserId
+
 from settings import WEB_CLIENT_ID
 
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 
 REQUEST_CONTAINER = endpoints.ResourceContainer(
-    displayName = messages.StringField(1),
-    teeShirtSize = messages.EnumField('models.TeeShirtSize', 2),
+    displayName=messages.StringField(1),
+    teeShirtSize=messages.EnumField('models.TeeShirtSize', 2),
 )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -63,35 +65,37 @@ class ConferenceApi(remote.Service):
                 # convert t-shirt string to Enum; just copy others
                 if field.name == 'teeShirtSize':
                     setattr(
-                        pf, field.name, getattr(TeeShirtSize, getattr(prof, field.name)))
+                        pf, field.name, getattr(TeeShirtSize, getattr(prof, field.name)))  # noqa
                 else:
                     setattr(pf, field.name, getattr(prof, field.name))
         pf.check_initialized()
         return pf
 
     def _getProfileFromUser(self):
-        """Return user Profile from datastore, creating new one if non-existent."""
-        # TODO 2
-        # step 1: make sure user is authed
-        # uncomment the following lines:
-        ### DONE
+        """Return user Profile from datastore, creating new one if non-existent."""  # noqa
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
-        profile = None
-        print user.nickname()
-        print user.email()
-        # step 2: create a new Profile from logged in user data
-        # you can use user.nickname() to get displayName
-        # and user.email() to get mainEmail
+
+        # Get user id by calling getUserId(user)
+        user_id = getUserId(user)
+
+        # Create a new key of kind Profile from the id.
+        p_key = ndb.Key(Profile, user_id)
+
+        # Get the entity from datastore by using get() on the key
+        profile = p_key.get()
+
+        # If profile doesn't exist, we create a new one
         if not profile:
             profile = Profile(
-                userId=None,
-                key=None,
+                key=p_key,  # TODO 1 step 4. replace with the key from step 3
                 displayName=user.nickname(),
                 mainEmail=user.email(),
                 teeShirtSize=str(TeeShirtSize.NOT_SPECIFIED),
             )
+            # Save the profile to datastore
+            profile.put()
 
         return profile      # return Profile
 
@@ -107,6 +111,8 @@ class ConferenceApi(remote.Service):
                     val = getattr(save_request, field)
                     if val:
                         setattr(prof, field, str(val))
+            # Put the modified profile to datastore
+            prof.put()
 
         # return ProfileForm
         return self._copyProfileToForm(prof)
@@ -117,10 +123,6 @@ class ConferenceApi(remote.Service):
         """Return user profile."""
         return self._doProfile()
 
-    # TODO 1
-    # 1. change request class
-    # 2. pass request to _doProfile function
-    ### DONE
     @endpoints.method(REQUEST_CONTAINER, ProfileForm,
                       path='profile', http_method='POST', name='saveProfile')
     def saveProfile(self, request):
