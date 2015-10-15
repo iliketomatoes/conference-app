@@ -13,4 +13,15 @@ indexes:
 - kind: Conference
   properties:
   - name: city
+  - name: month
+  - name: name
+
+- kind: Conference
+  properties:
+  - name: city
+  - name: name
+
+- kind: Conference
+  properties:
+  - name: month
   - name: name

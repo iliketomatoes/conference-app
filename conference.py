@@ -42,6 +42,13 @@ from models import ConferenceForms
 from models import ConferenceQueryForm
 from models import ConferenceQueryForms
 
+from models import BooleanMessage
+from models import ConflictException
+
+CONF_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
+)
 
 DEFAULTS = {
     "city": "Default City",
@@ -308,6 +315,158 @@ class ConferenceApi(remote.Service):
             items=[self._copyConferenceToForm(conf, "")
                    for conf in conferences]
         )
+
+    @endpoints.method(CONF_GET_REQUEST, ConferenceForm,
+                      path='conference/{websafeConferenceKey}',
+                      http_method='GET', name='getConference')
+    def getConference(self, request):
+        """Return requested conference (by websafeConferenceKey)."""
+        # get Conference object from request; bail if not found
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
+        prof = conf.key.parent().get()
+        # return ConferenceForm
+        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
+
+    @endpoints.method(message_types.VoidMessage, ConferenceForms,
+                      path='getConferencesCreated',
+                      http_method='POST', name='getConferencesCreated')
+    def getConferencesCreated(self, request):
+        """Return conferences created by user."""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+
+        # make profile key
+        p_key = ndb.Key(Profile, getUserId(user))
+        # create ancestor query for this user
+        conferences = Conference.query(ancestor=p_key)
+        # get the user profile and display name
+        prof = p_key.get()
+        displayName = getattr(prof, 'displayName')
+        # return set of ConferenceForm objects per Conference
+        return ConferenceForms(
+            items=[self._copyConferenceToForm(
+                conf, displayName) for conf in conferences]
+        )
+
+    @endpoints.method(message_types.VoidMessage, ConferenceForms,
+                      path='filterPlayground',
+                      http_method='GET', name='filterPlayground')
+    def filterPlayground(self, request):
+        q = Conference.query()
+        # simple filter usage:
+        # q = q.filter(Conference.city == "Paris")
+
+        # advanced filter building and usage
+        # field = "city"
+        # operator = "="
+        # value = "London"
+        # f = ndb.query.FilterNode(field, operator, value)
+        # q = q.filter(f)
+
+        # TODO
+        # add 2 filters:
+        # 1: city equals to London
+        # 2: topic equals "Medical Innovations"
+        q = q.filter(Conference.city == "London")
+        #q = q.filter(Conference.topics == "Medical Innovations")
+        #q = q.filter(Conference.month == 6)
+        q = q.filter(Conference.maxAttendees > 10)
+
+        q = q.order(Conference.name)
+
+        return ConferenceForms(
+            items=[self._copyConferenceToForm(conf, "") for conf in q]
+        )
+
+# - - - Registration - - - - - - - - - - - - - - - - - - - -
+
+    @ndb.transactional(xg=True)
+    def _conferenceRegistration(self, request, reg=True):
+        """Register or unregister user for selected conference."""
+        retval = None
+        prof = self._getProfileFromUser()  # get user Profile
+
+        # check if conf exists given websafeConfKey
+        # get conference; check that it exists
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % wsck)
+
+        # register
+        if reg:
+            # check if user already registered otherwise add
+            if wsck in prof.conferenceKeysToAttend:
+                raise ConflictException(
+                    "You have already registered for this conference")
+
+            # check if seats avail
+            if conf.seatsAvailable <= 0:
+                raise ConflictException(
+                    "There are no seats available.")
+
+            # register user, take away one seat
+            prof.conferenceKeysToAttend.append(wsck)
+            conf.seatsAvailable -= 1
+            retval = True
+
+        # unregister
+        else:
+            # check if user already registered
+            if wsck in prof.conferenceKeysToAttend:
+
+                # unregister user, add back one seat
+                prof.conferenceKeysToAttend.remove(wsck)
+                conf.seatsAvailable += 1
+                retval = True
+            else:
+                retval = False
+
+        # write things back to the datastore & return
+        prof.put()
+        conf.put()
+        return BooleanMessage(data=retval)
+
+    @endpoints.method(CONF_GET_REQUEST, BooleanMessage,
+                      path='conference/{websafeConferenceKey}',
+                      http_method='POST', name='registerForConference')
+    def registerForConference(self, request):
+        """Register user for selected conference."""
+        return self._conferenceRegistration(request)
+
+    @endpoints.method(CONF_GET_REQUEST, BooleanMessage,
+                      path='unregisterFromConference /{websafeConferenceKey}',
+                      http_method='POST', name='unregisterFromConference')
+    def unregisterFromConference (self, request):
+        """Register user for selected conference."""
+        return self._conferenceRegistration(request, False)
+
+    @endpoints.method(message_types.VoidMessage, ConferenceForms,
+                      path='conferences/attending',
+                      http_method='GET', name='getConferencesToAttend')
+    def getConferencesToAttend(self, request):
+        """Get list of conferences that user has registered for."""
+        # step 1: get user profile
+        prof = self._getProfileFromUser()
+
+        # step 2: get conferenceKeysToAttend from profile.
+        wscks = prof.conferenceKeysToAttend
+
+        # step 3: fetch conferences from datastore.
+        ds_keys = [ndb.Key(urlsafe=wsck) for wsck in wscks]
+
+        conferences = ndb.get_multi(ds_keys)
+
+        # return set of ConferenceForm objects per Conference
+        return ConferenceForms(items=[self._copyConferenceToForm(conf, "")
+                                      for conf in conferences]
+                               )
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
