@@ -1,0 +1,4 @@
+cron:
+- description: Repopulate the announcement every 2 hours
+  url: /crons/set_announcement
+  schedule: every 2 hours
