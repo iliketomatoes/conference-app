@@ -25,3 +25,8 @@ indexes:
   properties:
   - name: month
   - name: name
+
+- kind: Conference
+  properties:
+  - name: seatsAvailable
+  - name: name

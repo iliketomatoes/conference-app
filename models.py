@@ -128,3 +128,9 @@ class ConferenceQueryForms(messages.Message):
 
     """ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message"""  # noqa
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
+
+
+class StringMessage(messages.Message):
+
+    """StringMessage-- outbound (single) string message"""
+    data = messages.StringField(1, required=True)
