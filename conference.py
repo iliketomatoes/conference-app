@@ -49,8 +49,15 @@ from models import ConflictException
 
 from models import StringMessage
 
+from models import Session, SessionForm
+
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
+)
+
+CONF_SESSION_POST_REQUEST = endpoints.ResourceContainer(
+    SessionForm,
     websafeConferenceKey=messages.StringField(1),
 )
 
@@ -244,9 +251,9 @@ class ConferenceApi(remote.Service):
 
         # Send confirmation email to the conference creator
         taskqueue.add(params={'email': user.email(),
-            'conferenceInfo': repr(request)},
-            url='/tasks/send_confirmation_email'
-        )
+                              'conferenceInfo': repr(request)},
+                      url='/tasks/send_confirmation_email'
+                      )
 
         return request
 
@@ -512,6 +519,28 @@ class ConferenceApi(remote.Service):
         if not announcement:
             announcement = ''
         return StringMessage(data=announcement)
+
+
+# - - - Session objects - - - - - - - - - - - - - - - - -
+
+    @endpoints.method(CONF_GET_REQUEST, StringMessage,
+                      path='getConferenceSessions/{websafeConferenceKey}',
+                      http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Return conference sessions."""
+        requestParameter = request.websafeConferenceKey
+        response = 'You passed this parameter %s' % requestParameter
+        return StringMessage(data=response)
+
+    @endpoints.method(CONF_SESSION_POST_REQUEST, StringMessage,
+                      path='createSession/{websafeConferenceKey}',
+                      http_method='POST', name='createSession')
+    def createSession(self, request):
+        """Create a conference session."""
+        print request
+        wsck = request.websafeConferenceKey
+        
+        return StringMessage(data=wsck)    
 
 # registers API
 api = endpoints.api_server([ConferenceApi])

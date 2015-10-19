@@ -134,3 +134,36 @@ class StringMessage(messages.Message):
 
     """StringMessage-- outbound (single) string message"""
     data = messages.StringField(1, required=True)
+
+
+# - - - Session classes - - - - - - - - - - - - - - - - - - -
+
+class Session(ndb.Model):
+
+    """Conference -- Conference object"""
+    name = ndb.StringProperty(required=True)
+    highlights = ndb.StringProperty()
+    conferenceId = ndb.StringProperty()
+    speakers = ndb.StringProperty(repeated=True)
+    date = ndb.DateProperty()
+    duration = ndb.IntegerProperty()
+    startTime = ndb.TimeProperty()
+
+
+class SpeakerForm(messages.Message):
+
+    """SpeakerForm -- Speaker outbound form message"""
+    name = messages.StringField(1, required=True)
+    email = messages.StringField(2, required=True)
+
+
+class SessionForm(messages.Message):
+
+    """SessionForm -- Session outbound form message"""
+    name = messages.StringField(1, required=True)
+    highlights = messages.StringField(2)
+    speakers = messages.MessageField(SpeakerForm, 3, repeated=True)
+    date = messages.StringField(4)
+    duration = messages.IntegerField(5)
+    startTime = messages.StringField(6)
+    websafeKey = messages.StringField(7)
