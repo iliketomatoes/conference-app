@@ -56,6 +56,11 @@ CONF_GET_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
+CONF_PUT_REQUEST = endpoints.ResourceContainer(
+    ConferenceForm,
+    websafeConferenceKey=messages.StringField(1),
+)
+
 CONF_SESSION_POST_REQUEST = endpoints.ResourceContainer(
     SessionForm,
     websafeConferenceKey=messages.StringField(1),
@@ -257,11 +262,58 @@ class ConferenceApi(remote.Service):
 
         return request
 
+    @ndb.transactional()
+    def _updateConferenceObject(self, request):
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # copy ConferenceForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name)
+                for field in request.all_fields()}
+
+        # update existing conference
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        # check that conference exists
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
+
+        # check that user is owner
+        if user_id != conf.organizerUserId:
+            raise endpoints.ForbiddenException(
+                'Only the owner can update the conference.')
+
+        # Not getting all the fields, so don't create a new object; just
+        # copy relevant fields from ConferenceForm to Conference object
+        for field in request.all_fields():
+            data = getattr(request, field.name)
+            # only copy fields where we get data
+            if data not in (None, []):
+                # special handling for dates (convert string to Date)
+                if field.name in ('startDate', 'endDate'):
+                    data = datetime.strptime(data, "%Y-%m-%d").date()
+                    if field.name == 'startDate':
+                        conf.month = data.month
+                # write to Conference object
+                setattr(conf, field.name, data)
+        conf.put()
+        prof = ndb.Key(Profile, user_id).get()
+        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
+
     @endpoints.method(ConferenceForm, ConferenceForm, path='conference',
                       http_method='POST', name='createConference')
     def createConference(self, request):
         """Create new conference."""
         return self._createConferenceObject(request)
+
+    @endpoints.method(CONF_PUT_REQUEST, ConferenceForm,
+                      path='conference/{websafeConferenceKey}',
+                      http_method='PUT', name='updateConference')
+    def updateConference(self, request):
+        """Update conference w/provided fields & return w/updated info."""
+        return self._updateConferenceObject(request)
 
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
@@ -360,6 +412,7 @@ class ConferenceApi(remote.Service):
         conferences = Conference.query(ancestor=p_key)
         # get the user profile and display name
         prof = p_key.get()
+
         displayName = getattr(prof, 'displayName')
         # return set of ConferenceForm objects per Conference
         return ConferenceForms(
@@ -539,8 +592,8 @@ class ConferenceApi(remote.Service):
         """Create a conference session."""
         print request
         wsck = request.websafeConferenceKey
-        
-        return StringMessage(data=wsck)    
+
+        return StringMessage(data=wsck)
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
