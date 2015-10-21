@@ -91,6 +91,7 @@ class Conference(ndb.Model):
     endDate = ndb.DateProperty()
     maxAttendees = ndb.IntegerProperty()
     seatsAvailable = ndb.IntegerProperty()
+    sessionKeys = ndb.StringProperty(repeated=True)
 
 
 class ConferenceForm(messages.Message):
@@ -143,11 +144,12 @@ class Session(ndb.Model):
     """Conference -- Conference object"""
     name = ndb.StringProperty(required=True)
     highlights = ndb.StringProperty()
-    conferenceId = ndb.StringProperty()
+    # conferenceId = ndb.StringProperty()
     speakers = ndb.StringProperty(repeated=True)
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
     startTime = ndb.TimeProperty()
+    conferenceType = ndb.StringProperty(default='NOT_SPECIFIED')
 
 
 class SpeakerForm(messages.Message):
@@ -160,10 +162,20 @@ class SpeakerForm(messages.Message):
 class SessionForm(messages.Message):
 
     """SessionForm -- Session outbound form message"""
-    name = messages.StringField(1, required=True)
+    name = messages.StringField(1)
     highlights = messages.StringField(2)
     speakers = messages.MessageField(SpeakerForm, 3, repeated=True)
     date = messages.StringField(4)
     duration = messages.IntegerField(5)
     startTime = messages.StringField(6)
-    websafeKey = messages.StringField(7)
+    conferenceType = messages.EnumField('ConferenceType', 7)
+    # websafeKey = messages.StringField(7)
+
+
+class ConferenceType(messages.Enum):
+
+    """TeeShirtSize -- t-shirt size enumeration value"""
+    NOT_SPECIFIED = 1
+    LECTURE = 2
+    KEYNOTE = 3
+    WORKSHOP = 4
