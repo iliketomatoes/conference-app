@@ -667,9 +667,6 @@ class ConferenceApi(remote.Service):
         s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
 
-        # Remove websafeConferenceKey from the dict previously created
-        del data['websafeConferenceKey']
-
         # In the unlikely case that the same speaker gets listed twice
         # in the same session, we make sure to take it just once
         speakerForms = {x.email: x for x in data['speakers']}.values()
@@ -699,14 +696,20 @@ class ConferenceApi(remote.Service):
         # return set of SessionForm objects
         return self._copySessionToForm(request)
 
-    @endpoints.method(CONF_GET_REQUEST, StringMessage,
+    @endpoints.method(CONF_GET_REQUEST, SessionForm,
                       path='getConferenceSessions/{websafeConferenceKey}',
                       http_method='GET', name='getConferenceSessions')
     def getConferenceSessions(self, request):
         """Return conference sessions."""
-        requestParameter = request.websafeConferenceKey
-        response = 'You passed this parameter %s' % requestParameter
-        return StringMessage(data=response)
+        # get Conference object from request; bail if not found
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
+
+        prof = conf.key.parent().get()
+        # return ConferenceForm
+        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
 
     @endpoints.method(CONF_SESSION_POST_REQUEST, SessionForm,
                       path='createSession/{websafeConferenceKey}',

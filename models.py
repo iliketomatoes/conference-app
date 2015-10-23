@@ -151,6 +151,7 @@ class Session(ndb.Model):
     """Conference -- Conference object"""
     name = ndb.StringProperty(required=True)
     highlights = ndb.StringProperty()
+    websafeConferenceKey = ndb.StringProperty()
     speakers = ndb.StructuredProperty(SessionSpeaker, repeated=True)
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
