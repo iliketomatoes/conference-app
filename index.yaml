@@ -30,3 +30,8 @@ indexes:
   properties:
   - name: seatsAvailable
   - name: name
+
+- kind: Session
+  properties:
+  - name: websafeConferenceKey
+  - name: date

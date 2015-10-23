@@ -51,8 +51,11 @@ from models import StringMessage
 
 from models import Session
 from models import SessionForm
+from models import SessionForms
 from models import SessionSpeaker
+from models import SpeakerForm
 from models import Speaker
+from models import SessionType
 
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
@@ -597,7 +600,7 @@ class ConferenceApi(remote.Service):
         return speaker     # return Speaker
 
     def _addSessionToSpeaker(self, session_key, speakerForms):
-
+        """Append session key to each Speaker entity given in the parameter"""
         for speaker in speakerForms:
             speakerObj = self._getSpeaker(speaker.email)
             speakerObj.sessionKeysToAttend.append(session_key.urlsafe())
@@ -608,18 +611,31 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(sess, field.name):
-                # convert Date to date string; just copy others
-                if field.name.endswith('Date'):
+                if field.name == 'speakers':
+                    for speaker in sess.speakers:
+                        sf.speakers.append(
+                            SpeakerForm(
+                                name=speaker.name,
+                                email=speaker.email)
+                        )
+                # convert sessionType string to Enum
+                elif field.name == 'sessionType':
+                    setattr(
+                        sf,
+                        field.name,
+                        getattr(SessionType, getattr(sess, field.name))
+                    )
+                # convert Date to date string
+                elif field.name == 'date':
                     setattr(sf, field.name, str(getattr(sess, field.name)))
+                # just copy others
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
-            elif field.name == "websafeKey":
-                setattr(sf, field.name, sess.key.urlsafe())
         sf.check_initialized()
         return sf
 
     def _createSessionObject(self, request):
-        """Create a Session object, returning SessionForm/request."""  # noqa
+        """Create a Session object, returning SessionForm/request."""
         # preload necessary data items
         user = endpoints.get_current_user()
         if not user:
@@ -661,6 +677,10 @@ class ConferenceApi(remote.Service):
                 raise endpoints.BadRequestException(
                     "Start time must be in military notation (3 or 4 digits)")
 
+        if data['sessionType']:
+            # Convert enum field to string
+            data['sessionType'] = data['sessionType'].name
+
         # allocate new Session ID with Conference key as parent
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
         # make Conference key from ID
@@ -684,7 +704,7 @@ class ConferenceApi(remote.Service):
                 email=speaker.email)
             )
 
-        # Overwrite the SpeakerForm object list with 
+        # Overwrite the SpeakerForm object list with
         # the SessionSpeaker object list
         data['speakers'] = speakerObjects
 
@@ -694,22 +714,28 @@ class ConferenceApi(remote.Service):
         Session(**data).put()
 
         # return set of SessionForm objects
-        return self._copySessionToForm(request)
+        return self._copySessionToForm(s_key.get())
 
-    @endpoints.method(CONF_GET_REQUEST, SessionForm,
+    @endpoints.method(CONF_GET_REQUEST, SessionForms,
                       path='getConferenceSessions/{websafeConferenceKey}',
                       http_method='GET', name='getConferenceSessions')
     def getConferenceSessions(self, request):
         """Return conference sessions."""
         # get Conference object from request; bail if not found
-        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
 
-        prof = conf.key.parent().get()
-        # return ConferenceForm
-        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == wsck)
+        q = q.order(Session.date)
+
+        # return SessionForm
+        return SessionForms(
+            items=[self._copySessionToForm(sess)for sess in q]
+        )
 
     @endpoints.method(CONF_SESSION_POST_REQUEST, SessionForm,
                       path='createSession/{websafeConferenceKey}',

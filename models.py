@@ -156,7 +156,7 @@ class Session(ndb.Model):
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
     startTime = ndb.IntegerProperty()  # Military time notation
-    conferenceType = ndb.StringProperty(default='NOT_SPECIFIED')
+    sessionType = ndb.StringProperty()
 
 
 class Speaker(ndb.Model):
@@ -182,13 +182,18 @@ class SessionForm(messages.Message):
     date = messages.StringField(4)
     duration = messages.IntegerField(5)
     startTime = messages.IntegerField(6)
-    conferenceType = messages.EnumField('ConferenceType', 7)
-    # websafeKey = messages.StringField(7)
+    sessionType = messages.EnumField('SessionType', 7, default='NOT_SPECIFIED')
 
 
-class ConferenceType(messages.Enum):
+class SessionForms(messages.Message):
 
-    """TeeShirtSize -- t-shirt size enumeration value"""
+    """SessionForms -- multiple Session outbound form message"""
+    items = messages.MessageField(SessionForm, 1, repeated=True)
+
+
+class SessionType(messages.Enum):
+
+    """SessionType -- Session type value"""
     NOT_SPECIFIED = 1
     LECTURE = 2
     KEYNOTE = 3
