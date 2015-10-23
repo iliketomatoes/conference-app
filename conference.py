@@ -13,7 +13,7 @@ created by wesc on 2014 apr 21
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
-from datetime import datetime
+from datetime import datetime, time
 import json
 import os
 import time
@@ -49,7 +49,11 @@ from models import ConflictException
 
 from models import StringMessage
 
-from models import Session, SessionForm
+from models import Session
+from models import SessionForm
+from models import SessionSpeaker
+from models import Speaker
+
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -345,8 +349,6 @@ class ConferenceApi(remote.Service):
                      for field in f.all_fields()}
 
             try:
-                print filtr["field"]
-                print filtr["operator"]
                 filtr["field"] = FIELDS[filtr["field"]]
                 filtr["operator"] = OPERATORS[filtr["operator"]]
             except KeyError:
@@ -576,6 +578,31 @@ class ConferenceApi(remote.Service):
 
 # - - - Session objects - - - - - - - - - - - - - - - - -
 
+    def _getSpeaker(self, email):
+        # Create a new key of kind Speaker from the id.
+        s_key = ndb.Key(Speaker, email)
+
+        # Get the entity from datastore by using get() on the key
+        speaker = s_key.get()
+
+        # If speaker doesn't exist, we create a new one
+        if not speaker:
+            speaker = Speaker(
+                key=s_key,
+                email=email,  # e-mail is enough, no name to store
+            )
+            # Save the speaker to datastore
+            speaker.put()
+
+        return speaker     # return Speaker
+
+    def _addSessionToSpeaker(self, session_key, speakerForms):
+
+        for speaker in speakerForms:
+            speakerObj = self._getSpeaker(speaker.email)
+            speakerObj.sessionKeysToAttend.append(session_key.urlsafe())
+            speakerObj.put()
+
     def _copySessionToForm(self, sess):
         """Copy relevant fields from Conference to ConferenceForm."""
         sf = SessionForm()
@@ -603,7 +630,7 @@ class ConferenceApi(remote.Service):
         c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
         # get the actual Conference object
         conf = c_key.get()
-        
+
         # check that conference exists
         if not conf:
             raise endpoints.NotFoundException(
@@ -629,10 +656,10 @@ class ConferenceApi(remote.Service):
                 data['date'][:10], "%Y-%m-%d").date()
 
         if data['startTime']:
-            data['startTime'] = datetime.strptime(
-                data['startTime'][:2].join(data['startTime'][:-2]),
-                "%H:%M"
-            ).time()
+            startTimeDigits = len(str(data['startTime']))
+            if startTimeDigits < 3 or startTimeDigits > 4:
+                raise endpoints.BadRequestException(
+                    "Start time must be in military notation (3 or 4 digits)")
 
         # allocate new Session ID with Conference key as parent
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
@@ -643,14 +670,31 @@ class ConferenceApi(remote.Service):
         # Remove websafeConferenceKey from the dict previously created
         del data['websafeConferenceKey']
 
+        # In the unlikely case that the same speaker gets listed twice
+        # in the same session, we make sure to take it just once
+        speakerForms = {x.email: x for x in data['speakers']}.values()
+
+        # Create the SessionSpeaker objects to append to the Session object
+        speakerObjects = []
+        for speaker in speakerForms:
+            # check whether the e-mail field is an empty string
+            if not speaker.email.strip():
+                raise endpoints.BadRequestException(
+                    "Speaker 'e-mail' field cannot be empty"
+                )
+            speakerObjects.append(SessionSpeaker(
+                name=speaker.name,
+                email=speaker.email)
+            )
+
+        # Overwrite the SpeakerForm object list with 
+        # the SessionSpeaker object list
+        data['speakers'] = speakerObjects
+
+        self._addSessionToSpeaker(s_key, speakerForms)
+
         # create Session
         Session(**data).put()
-
-        # Send confirmation email to the conference creator
-        """taskqueue.add(params={'email': user.email(),
-                              'conferenceInfo': repr(request)},
-                      url='/tasks/send_confirmation_email'
-                      )"""
 
         # return set of SessionForm objects
         return self._copySessionToForm(request)

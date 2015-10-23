@@ -139,23 +139,36 @@ class StringMessage(messages.Message):
 
 # - - - Session classes - - - - - - - - - - - - - - - - - - -
 
+class SessionSpeaker(ndb.Model):
+
+    """SessionSpeaker -- Speaker structured property for Session model"""
+    email = ndb.StringProperty(required=True)
+    name = ndb.StringProperty()
+
+
 class Session(ndb.Model):
 
     """Conference -- Conference object"""
     name = ndb.StringProperty(required=True)
     highlights = ndb.StringProperty()
-    # conferenceId = ndb.StringProperty()
-    speakers = ndb.StringProperty(repeated=True)
+    speakers = ndb.StructuredProperty(SessionSpeaker, repeated=True)
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
-    startTime = ndb.TimeProperty()
+    startTime = ndb.IntegerProperty()  # Military time notation
     conferenceType = ndb.StringProperty(default='NOT_SPECIFIED')
+
+
+class Speaker(ndb.Model):
+
+    """Speaker -- Speaker object"""
+    email = ndb.StringProperty(required=True)
+    sessionKeysToAttend = ndb.StringProperty(repeated=True)
 
 
 class SpeakerForm(messages.Message):
 
     """SpeakerForm -- Speaker outbound form message"""
-    name = messages.StringField(1, required=True)
+    name = messages.StringField(1)
     email = messages.StringField(2, required=True)
 
 
@@ -167,7 +180,7 @@ class SessionForm(messages.Message):
     speakers = messages.MessageField(SpeakerForm, 3, repeated=True)
     date = messages.StringField(4)
     duration = messages.IntegerField(5)
-    startTime = messages.StringField(6)
+    startTime = messages.IntegerField(6)
     conferenceType = messages.EnumField('ConferenceType', 7)
     # websafeKey = messages.StringField(7)
 
