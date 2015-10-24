@@ -144,6 +144,7 @@ class SessionSpeaker(ndb.Model):
     """SessionSpeaker -- Speaker structured property for Session model"""
     email = ndb.StringProperty(required=True)
     name = ndb.StringProperty()
+    websafeSpeakerKey = ndb.StringProperty()
 
 
 class Session(ndb.Model):
@@ -151,7 +152,6 @@ class Session(ndb.Model):
     """Conference -- Conference object"""
     name = ndb.StringProperty(required=True)
     highlights = ndb.StringProperty()
-    websafeConferenceKey = ndb.StringProperty()
     speakers = ndb.StructuredProperty(SessionSpeaker, repeated=True)
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
@@ -171,6 +171,7 @@ class SpeakerForm(messages.Message):
     """SpeakerForm -- Speaker outbound form message"""
     name = messages.StringField(1)
     email = messages.StringField(2, required=True)
+    websafeSpeakerKey = messages.StringField(3)
 
 
 class SessionForm(messages.Message):

@@ -69,6 +69,11 @@ SESSION_BYTYPE_GET_REQUEST = endpoints.ResourceContainer(
     typeOfSession=messages.StringField(2),
 )
 
+SESSION_BYSPEAKER_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSpeakerKey=messages.StringField(1),
+)
+
 CONF_PUT_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
     websafeConferenceKey=messages.StringField(1),
@@ -599,12 +604,13 @@ class ConferenceApi(remote.Service):
 
         return speaker     # return Speaker
 
-    def _addSessionToSpeaker(self, session_key, speakerForms):
-        """Append session key to each Speaker entity given in the parameter"""
-        for speaker in speakerForms:
-            speakerObj = self._getSpeaker(speaker.email)
-            speakerObj.sessionKeysToAttend.append(session_key.urlsafe())
-            speakerObj.put()
+    def _addSessionToSpeaker(self, session_key, speakerForm):
+        """Append session key to Speaker entity given in the parameter as SpeakerForm entity"""  # noqa
+        speakerObj = self._getSpeaker(speakerForm.email)
+        speakerObj.sessionKeysToAttend.append(session_key.urlsafe())
+        speakerObj.put()
+        # Return the speaker websafe key
+        return speakerObj.key.urlsafe()
 
     def _copySessionToForm(self, sess):
         """Copy relevant fields from Conference to ConferenceForm."""
@@ -616,7 +622,9 @@ class ConferenceApi(remote.Service):
                         sf.speakers.append(
                             SpeakerForm(
                                 name=speaker.name,
-                                email=speaker.email)
+                                email=speaker.email,
+                                websafeSpeakerKey=speaker.websafeSpeakerKey,
+                            )
                         )
                 # convert sessionType string to Enum
                 elif field.name == 'sessionType':
@@ -703,17 +711,22 @@ class ConferenceApi(remote.Service):
                 raise endpoints.BadRequestException(
                     "Speaker 'e-mail' field cannot be empty"
                 )
+            # Add the websafe session key to the speaker objects
+            # and return the websafe speaker key
+            wssk = self._addSessionToSpeaker(s_key, speaker)
             speakerObjects.append(SessionSpeaker(
                 name=speaker.name,
-                email=speaker.email)
+                email=speaker.email,
+                websafeSpeakerKey=wssk
+            )
             )
 
         # Overwrite the SpeakerForm object list with
         # the SessionSpeaker object list
         data['speakers'] = speakerObjects
 
-        # Add the websafe session key to the speaker objects
-        self._addSessionToSpeaker(s_key, speakerForms)
+        # Get rid of useless field. Session object has not such a field
+        del data['websafeConferenceKey']
 
         # create Session
         Session(**data).put()
@@ -739,7 +752,7 @@ class ConferenceApi(remote.Service):
 
         # return set of SessionForm objects
         return SessionForms(
-            items=[self._copySessionToForm(sess)for sess in q]
+            items=[self._copySessionToForm(sess) for sess in q]
         )
 
     @endpoints.method(SESSION_POST_REQUEST, SessionForm,
@@ -766,8 +779,30 @@ class ConferenceApi(remote.Service):
         sess_type = request.typeOfSession.upper()
         # Get sessions for the given conference, filtered by type
         q = Session.query(ancestor=c_key).\
-            filter(Session.sessionType==sess_type).\
+            filter(Session.sessionType == sess_type).\
             fetch()
+
+        # return set of SessionForm objects
+        return SessionForms(
+            items=[self._copySessionToForm(sess)for sess in q]
+        )
+
+    @endpoints.method(SESSION_BYSPEAKER_GET_REQUEST, SessionForms,
+                      path='getSessionsBySpeaker/{websafeSpeakerKey}',
+                      http_method='GET', name='getSessionsBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        """Get sessions by speaker, across al the conferences."""
+        # get Speaker object from request; bail if not found
+        wssk = request.websafeSpeakerKey
+        speaker_key = ndb.Key(urlsafe=wssk)
+        speaker = speaker_key.get()
+        if not speaker:
+            raise endpoints.NotFoundException(
+                'No speaker found with key: %s' % wssk)
+
+        # Get the sessions
+        ds_keys = [ndb.Key(urlsafe=wssk) for wssk in speaker.sessionKeysToAttend]  # noqa
+        q = ndb.get_multi(ds_keys)
 
         # return set of SessionForm objects
         return SessionForms(
