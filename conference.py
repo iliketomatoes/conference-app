@@ -63,12 +63,18 @@ CONF_GET_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
+SESSION_BYTYPE_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
+    typeOfSession=messages.StringField(2),
+)
+
 CONF_PUT_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
     websafeConferenceKey=messages.StringField(1),
 )
 
-CONF_SESSION_POST_REQUEST = endpoints.ResourceContainer(
+SESSION_POST_REQUEST = endpoints.ResourceContainer(
     SessionForm,
     websafeConferenceKey=messages.StringField(1),
 )
@@ -736,12 +742,37 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(sess)for sess in q]
         )
 
-    @endpoints.method(CONF_SESSION_POST_REQUEST, SessionForm,
+    @endpoints.method(SESSION_POST_REQUEST, SessionForm,
                       path='createSession/{websafeConferenceKey}',
                       http_method='POST', name='createSession')
     def createSession(self, request):
         """Create a conference session."""
         return self._createSessionObject(request)
+
+    @endpoints.method(SESSION_BYTYPE_GET_REQUEST, SessionForms,
+                      path='getConferenceSessionsByType/{websafeConferenceKey}/{typeOfSession}',  # noqa
+                      http_method='GET', name='getConferenceSessionsByType')
+    def getConferenceSessionsByType(self, request):
+        """Return conference sessions by type."""
+        # get Conference object from request; bail if not found
+        wsck = request.websafeConferenceKey
+        c_key = ndb.Key(urlsafe=wsck)
+        conf = c_key.get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % wsck)
+
+        # Turn the session type into an uppercased string
+        sess_type = request.typeOfSession.upper()
+        # Get sessions for the given conference, filtered by type
+        q = Session.query(ancestor=c_key).\
+            filter(Session.sessionType==sess_type).\
+            fetch()
+
+        # return set of SessionForm objects
+        return SessionForms(
+            items=[self._copySessionToForm(sess)for sess in q]
+        )
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
