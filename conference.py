@@ -722,14 +722,14 @@ class ConferenceApi(remote.Service):
         """Return conference sessions."""
         # get Conference object from request; bail if not found
         wsck = request.websafeConferenceKey
-        conf = ndb.Key(urlsafe=wsck).get()
+        c_key = ndb.Key(urlsafe=wsck)
+        conf = c_key.get()
         if not conf:
             raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
+                'No conference found with key: %s' % wsck)
 
-        q = Session.query()
-        q = q.filter(Session.websafeConferenceKey == wsck)
-        q = q.order(Session.date)
+        # Get sessions for the given conference
+        q = Session.query(ancestor=c_key).fetch()
 
         # return set of SessionForm objects
         return SessionForms(
