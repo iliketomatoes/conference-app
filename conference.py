@@ -440,13 +440,7 @@ class ConferenceApi(remote.Service):
         # f = ndb.query.FilterNode(field, operator, value)
         # q = q.filter(f)
 
-        # TODO
-        # add 2 filters:
-        # 1: city equals to London
-        # 2: topic equals "Medical Innovations"
         q = q.filter(Conference.city == "London")
-        #q = q.filter(Conference.topics == "Medical Innovations")
-        #q = q.filter(Conference.month == 6)
         q = q.filter(Conference.maxAttendees > 10)
 
         q = q.order(Conference.name)
@@ -636,7 +630,7 @@ class ConferenceApi(remote.Service):
 
     def _createSessionObject(self, request):
         """Create a Session object, returning SessionForm/request."""
-        # preload necessary data items
+        # get the user
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -657,6 +651,7 @@ class ConferenceApi(remote.Service):
             raise endpoints.ForbiddenException(
                 'Only the owner can update the conference.')
 
+        # Check that name was given
         if not request.name:
             raise endpoints.BadRequestException(
                 "Session 'name' field required")
@@ -672,6 +667,8 @@ class ConferenceApi(remote.Service):
                 data['date'][:10], "%Y-%m-%d").date()
 
         if data['startTime']:
+            # If start time was given we want to be sure it's in military
+            # format
             startTimeDigits = len(str(data['startTime']))
             if startTimeDigits < 3 or startTimeDigits > 4:
                 raise endpoints.BadRequestException(
@@ -683,7 +680,7 @@ class ConferenceApi(remote.Service):
 
         # allocate new Session ID with Conference key as parent
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
-        # make Conference key from ID
+        # make Session key from ID
         s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
 
@@ -691,7 +688,8 @@ class ConferenceApi(remote.Service):
         # in the same session, we make sure to take it just once
         speakerForms = {x.email: x for x in data['speakers']}.values()
 
-        # Create the SessionSpeaker objects to append to the Session object
+        # Create the SessionSpeaker objects which will be appended
+        # to the Session object
         speakerObjects = []
         for speaker in speakerForms:
             # check whether the e-mail field is an empty string
@@ -708,12 +706,13 @@ class ConferenceApi(remote.Service):
         # the SessionSpeaker object list
         data['speakers'] = speakerObjects
 
+        # Add the websafe session key to the speaker objects
         self._addSessionToSpeaker(s_key, speakerForms)
 
         # create Session
         Session(**data).put()
 
-        # return set of SessionForm objects
+        # return SessionForm object
         return self._copySessionToForm(s_key.get())
 
     @endpoints.method(CONF_GET_REQUEST, SessionForms,
@@ -732,7 +731,7 @@ class ConferenceApi(remote.Service):
         q = q.filter(Session.websafeConferenceKey == wsck)
         q = q.order(Session.date)
 
-        # return SessionForm
+        # return set of SessionForm objects
         return SessionForms(
             items=[self._copySessionToForm(sess)for sess in q]
         )
