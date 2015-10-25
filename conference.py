@@ -613,7 +613,7 @@ class ConferenceApi(remote.Service):
         return speakerObj.key.urlsafe()
 
     def _copySessionToForm(self, sess):
-        """Copy relevant fields from Conference to ConferenceForm."""
+        """Copy relevant fields from Session to SessionForm."""
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(sess, field.name):
@@ -639,6 +639,9 @@ class ConferenceApi(remote.Service):
                 # just copy others
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
+            # get the websafe session key
+            elif field.name == 'websafeKey':
+                setattr(sf, field.name, sess.key.urlsafe())
         sf.check_initialized()
         return sf
 
@@ -808,6 +811,21 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(sess)for sess in q]
         )
+
+# - - - Wishlist - - - - - - - - - - - - - - - - - - - -
+
+    @endpoints.method(
+        endpoints.ResourceContainer(
+            message_types.VoidMessage,
+            websafeSessionKey=messages.StringField(1),),
+        SessionForm,
+        path='addSessionToWishlist/{websafeSessionKey}',
+        http_method='POST',
+        name='addSessionToWishlist'
+    )
+    def addSessionToWishlist(self, request):
+        """Add a session to the user's wishlist"""
+        return self._createSessionObject(request)
 
 # registers API
 api = endpoints.api_server([ConferenceApi])

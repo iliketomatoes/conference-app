@@ -18,7 +18,6 @@ from protorpc import messages
 from google.appengine.ext import ndb
 
 
-# replace your existing Profile class with this
 class Profile(ndb.Model):
 
     """Profile -- User profile object"""
@@ -26,6 +25,7 @@ class Profile(ndb.Model):
     mainEmail = ndb.StringProperty()
     teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
     conferenceKeysToAttend = ndb.StringProperty(repeated=True)
+    sessionKeysWishlist = ndb.StringProperty(repeated=True)
 
 
 # needed for conference registration
@@ -137,7 +137,7 @@ class StringMessage(messages.Message):
     data = messages.StringField(1, required=True)
 
 
-# - - - Session classes - - - - - - - - - - - - - - - - - - -
+# - - - Session related classes - - - - - - - - - - - - - - - - - - -
 
 class SessionSpeaker(ndb.Model):
 
@@ -184,6 +184,7 @@ class SessionForm(messages.Message):
     duration = messages.IntegerField(5)
     startTime = messages.IntegerField(6)
     sessionType = messages.EnumField('SessionType', 7, default='NOT_SPECIFIED')
+    websafeKey = messages.StringField(8)
 
 
 class SessionForms(messages.Message):
