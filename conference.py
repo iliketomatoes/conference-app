@@ -812,20 +812,46 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(sess)for sess in q]
         )
 
+
 # - - - Wishlist - - - - - - - - - - - - - - - - - - - -
 
     @endpoints.method(
         endpoints.ResourceContainer(
             message_types.VoidMessage,
             websafeSessionKey=messages.StringField(1),),
-        SessionForm,
+        ProfileForm,
         path='addSessionToWishlist/{websafeSessionKey}',
         http_method='POST',
         name='addSessionToWishlist'
     )
     def addSessionToWishlist(self, request):
         """Add a session to the user's wishlist"""
-        return self._createSessionObject(request)
+        # get Session object from request; bail if not found
+        wssk = request.websafeSessionKey
+        sess_key = ndb.Key(urlsafe=wssk)
+        session = sess_key.get()
+        if not session:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % wssk)
+
+        # Get the session's ancestor conference
+        conference = sess_key.parent().get()
+        print conference
+        
+        # get user Profile
+        prof = self._getProfileFromUser()
+
+        # TODO 1
+        ## Check if user is registered to the conference
+
+        # TODO 2
+        ## Check if there are seats available in the conference
+
+        # TODO 3
+        ## Add the session key to the user's wishlist
+
+        # return ProfileForm
+        return self._copyProfileToForm(prof)
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
