@@ -33,5 +33,22 @@ indexes:
 
 - kind: Session
   properties:
-  - name: websafeConferenceKey
   - name: date
+  - name: name
+
+- kind: Session
+  properties:
+  - name: date
+  - name: startTime
+    direction: desc
+
+- kind: Session
+  ancestor: yes
+  properties:
+  - name: name
+
+- kind: Session
+  ancestor: yes
+  properties:
+  - name: sessionType
+  - name: name

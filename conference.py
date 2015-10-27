@@ -584,7 +584,7 @@ class ConferenceApi(remote.Service):
         return StringMessage(data=announcement)
 
 
-# - - - Session objects - - - - - - - - - - - - - - - - -
+# - - - Task 1: Session objects - - - - - - - - - - - - - - - - -
 
     def _getSpeaker(self, email):
         # Create a new key of kind Speaker from the id.
@@ -742,7 +742,7 @@ class ConferenceApi(remote.Service):
                       path='getConferenceSessions/{websafeConferenceKey}',
                       http_method='GET', name='getConferenceSessions')
     def getConferenceSessions(self, request):
-        """Return conference sessions."""
+        """Return all the sessions in a given conference."""
         # get Conference object from request; bail if not found
         wsck = request.websafeConferenceKey
         c_key = ndb.Key(urlsafe=wsck)
@@ -752,7 +752,7 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' % wsck)
 
         # Get sessions for the given conference
-        q = Session.query(ancestor=c_key).fetch()
+        q = Session.query(ancestor=c_key).order(Session.name).fetch()
 
         # return set of SessionForm objects
         return SessionForms(
@@ -784,6 +784,7 @@ class ConferenceApi(remote.Service):
         # Get sessions for the given conference, filtered by type
         q = Session.query(ancestor=c_key).\
             filter(Session.sessionType == sess_type).\
+            order(Session.name).\
             fetch()
 
         # return set of SessionForm objects
@@ -814,7 +815,7 @@ class ConferenceApi(remote.Service):
         )
 
 
-# - - - Wishlist - - - - - - - - - - - - - - - - - - - -
+# - - - Task 2: Wishlist - - - - - - - - - - - - - - - - - - - -
 
     @endpoints.method(
         endpoints.ResourceContainer(
@@ -877,6 +878,42 @@ class ConferenceApi(remote.Service):
         # Get the sessions
         ds_keys = [ndb.Key(urlsafe=wssk) for wssk in prof.sessionKeysWishlist]  # noqa
         q = ndb.get_multi(ds_keys)
+
+        # return set of SessionForm objects
+        return SessionForms(
+            items=[self._copySessionToForm(sess)for sess in q]
+        )
+
+# - - - Task 3: Additional queries - - - - - - - - - - - - - - - - -
+
+    @endpoints.method(
+        endpoints.ResourceContainer(
+            message_types.VoidMessage,
+            date=messages.StringField(1),),
+        SessionForms,
+        path='getSessionsByDate',
+        http_method='GET',
+        name='getSessionsByDate'
+    )
+    def getSessionsByDate(self, request):
+        """Get sessions on a given day"""
+        date = None
+
+        if request.date:
+            try:
+                date = datetime.strptime(
+                    request.date[:10], "%Y-%m-%d").date()
+            except ValueError:
+                raise endpoints.BadRequestException(
+                    "Session 'date' must be ISO format")
+        else:
+            raise endpoints.BadRequestException(
+                "Session 'date' field required")
+
+        # convert dates from ISO format strings to Date objects;
+        # takes the first 10 characters of ISO format string.
+        q = Session.query(Session.date == date).\
+            order(-Session.startTime)
 
         # return set of SessionForm objects
         return SessionForms(
