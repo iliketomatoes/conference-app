@@ -905,7 +905,7 @@ class ConferenceApi(remote.Service):
                     request.date[:10], "%Y-%m-%d").date()
             except ValueError:
                 raise endpoints.BadRequestException(
-                    "Session 'date' must be ISO format")
+                    "Session 'date' must be ISO format: YYYY-MM-DD")
         else:
             raise endpoints.BadRequestException(
                 "Session 'date' field required")
@@ -919,6 +919,29 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(sess)for sess in q]
         )
+
+    @endpoints.method(
+        CONF_GET_REQUEST,
+        StringMessage,
+        path='getTshirtsByConference',
+        http_method='GET',
+        name='getTshirtsByConference'
+    )
+    def getTshirtsByConference(self, request):
+        """Get the amount of t-shirts for each size """
+        # get Conference object from request; bail if not found
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
+
+        q = Profile.query()
+        q = q.filter(Profile.conferenceKeysToAttend == str(wsck))
+        q = q.order(Profile.email)
+
+        # return set of SessionForm objects
+        return StringMessage(data='ciao')
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
