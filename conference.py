@@ -57,6 +57,8 @@ from models import SpeakerForm
 from models import Speaker
 from models import SessionType
 
+from models import TeeShirtSizeForm
+
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -922,13 +924,13 @@ class ConferenceApi(remote.Service):
 
     @endpoints.method(
         CONF_GET_REQUEST,
-        StringMessage,
+        TeeShirtSizeForm,
         path='getTshirtsByConference',
         http_method='GET',
         name='getTshirtsByConference'
     )
     def getTshirtsByConference(self, request):
-        """Get the amount of t-shirts for each size """
+        """Get the amount of t-shirts for each size that are needed for the given conference"""  # noqa
         # get Conference object from request; bail if not found
         wsck = request.websafeConferenceKey
         conf = ndb.Key(urlsafe=wsck).get()
@@ -936,12 +938,23 @@ class ConferenceApi(remote.Service):
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)  # noqa
 
-        q = Profile.query()
-        q = q.filter(Profile.conferenceKeysToAttend == str(wsck))
-        q = q.order(Profile.email)
+        # Get all the people who are meant to attend the given conference
+        q = Profile.query().filter(Profile.conferenceKeysToAttend == str(wsck))
 
-        # return set of SessionForm objects
-        return StringMessage(data='ciao')
+        # Init a new TeeShirtSizeForm instance
+        tShirts = TeeShirtSizeForm()
+
+        # Loop through users attending the conference and add 1 unit
+        # to each tshirt size in the outbound TeeShirtSizeForm instance
+        for user in q:
+            setattr(
+                tShirts,
+                user.teeShirtSize,
+                getattr(tShirts, user.teeShirtSize) + 1
+            )
+
+        # return TeeShirtSizeForm object
+        return tShirts
 
 # registers API
 api = endpoints.api_server([ConferenceApi])

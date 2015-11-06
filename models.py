@@ -79,6 +79,26 @@ class TeeShirtSize(messages.Enum):
     XXXL_W = 15
 
 
+class TeeShirtSizeForm(messages.Message):
+
+    """TeeShirtSizeForm -- amount of t-shirts needed for each conference outbound form message"""  # noqa
+    NOT_SPECIFIED = messages.IntegerField(1, default=0)
+    XS_M = messages.IntegerField(2, default=0)
+    XS_W = messages.IntegerField(3, default=0)
+    S_M = messages.IntegerField(4, default=0)
+    S_W = messages.IntegerField(5, default=0)
+    M_M = messages.IntegerField(6, default=0)
+    M_W = messages.IntegerField(7, default=0)
+    L_M = messages.IntegerField(8, default=0)
+    L_W = messages.IntegerField(9, default=0)
+    XL_M = messages.IntegerField(10, default=0)
+    XL_W = messages.IntegerField(11, default=0)
+    XXL_M = messages.IntegerField(12, default=0)
+    XXL_W = messages.IntegerField(13, default=0)
+    XXXL_M = messages.IntegerField(14, default=0)
+    XXXL_W = messages.IntegerField(15, default=0)
+
+
 class Conference(ndb.Model):
 
     """Conference -- Conference object"""

@@ -31,6 +31,11 @@ indexes:
   - name: seatsAvailable
   - name: name
 
+- kind: Profile
+  properties:
+  - name: conferenceKeysToAttend
+  - name: mainEmail
+
 - kind: Session
   properties:
   - name: date
