@@ -39,11 +39,6 @@ indexes:
 - kind: Session
   properties:
   - name: date
-  - name: name
-
-- kind: Session
-  properties:
-  - name: date
   - name: startTime
     direction: desc
 
@@ -57,3 +52,8 @@ indexes:
   properties:
   - name: sessionType
   - name: name
+
+- kind: Session
+  ancestor: yes
+  properties:
+  - name: startTime

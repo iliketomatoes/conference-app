@@ -930,7 +930,7 @@ class ConferenceApi(remote.Service):
         name='getTshirtsByConference'
     )
     def getTshirtsByConference(self, request):
-        """Get the amount of t-shirts for each size that are needed for the given conference"""  # noqa
+        """Get the amount of t-shirts, grouped by size, that are needed for the given conference"""  # noqa
         # get Conference object from request; bail if not found
         wsck = request.websafeConferenceKey
         conf = ndb.Key(urlsafe=wsck).get()
@@ -945,7 +945,8 @@ class ConferenceApi(remote.Service):
         tShirts = TeeShirtSizeForm()
 
         # Loop through users attending the conference and add 1 unit
-        # to each tshirt size in the outbound TeeShirtSizeForm instance
+        # to the corresponging tshirt size group in the TeeShirtSizeForm
+        # instance
         for user in q:
             setattr(
                 tShirts,
@@ -955,6 +956,45 @@ class ConferenceApi(remote.Service):
 
         # return TeeShirtSizeForm object
         return tShirts
+
+    @endpoints.method(
+        CONF_GET_REQUEST,
+        SessionForms,
+        path='getSessionsILike',
+        http_method='GET',
+        name='getSessionsILike'
+    )
+    def getSessionsILike(self, request):
+        """Get all the sessions that starts before 7pm and 
+        that are not workshops, for a given conference"""
+        # get Conference object from request; bail if not found
+        wsck = request.websafeConferenceKey
+        c_key = ndb.Key(urlsafe=wsck)
+        conf = c_key.get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % wsck)
+
+        # Get sessions for the given conference, filtered by type
+        q = Session.query(ancestor=c_key).\
+            filter(Session.startTime < 1900).\
+            order(Session.startTime).\
+            fetch()
+
+        # Init an empty list where to store filtered sessions
+        filteredSessions = []
+
+        # Filter out sessions which type is 'workshop';
+        # we have to do it programmatically since datastore
+        # doesn't support 2 inequality filters on the same query
+        for sess in q:
+            if sess.sessionType != 'WORKSHOP':
+                filteredSessions.append(self._copySessionToForm(sess))
+
+        # return set of SessionForm objects
+        return SessionForms(
+            items=filteredSessions
+        )
 
 # registers API
 api = endpoints.api_server([ConferenceApi])

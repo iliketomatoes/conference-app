@@ -58,3 +58,8 @@ When this kind of request makes it to our server, 3 different steps are performe
 This design let us store sessions and speakers as decoupled entities. This is because they have a many-to-many relationship. A session can have many speakers. A single speaker can attend many sessions. Since no *pivot tables* are meant to exist in a NoSQL database we have to store some speaker's info inside Session objects. Doing that is a virtue of necessity which allows us to reduce the reading operations from the datastore.  
 
 
+## Task 3
+
+Only one inequality filter per query is supported. Encountered both sessionType and startTime.
+
+

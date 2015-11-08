@@ -18,18 +18,7 @@ from protorpc import messages
 from google.appengine.ext import ndb
 
 
-class Profile(ndb.Model):
-
-    """Profile -- User profile object"""
-    displayName = ndb.StringProperty()
-    mainEmail = ndb.StringProperty()
-    teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
-    conferenceKeysToAttend = ndb.StringProperty(repeated=True)
-    sessionKeysWishlist = ndb.StringProperty(repeated=True)
-
-
-# needed for conference registration
-class BooleanMessage(messages.Message):
+class BooleanMessage(messages.Message):  # needed for conference registrations
 
     """BooleanMessage-- outbound Boolean value message"""
     data = messages.BooleanField(1)
@@ -39,6 +28,18 @@ class ConflictException(endpoints.ServiceException):
 
     """ConflictException -- exception mapped to HTTP 409 response"""
     http_status = httplib.CONFLICT
+
+
+# - - -Profile related classes - - - - - - - - - - - - - - - - - - -
+
+class Profile(ndb.Model):
+
+    """Profile -- User profile object"""
+    displayName = ndb.StringProperty()
+    mainEmail = ndb.StringProperty()
+    teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
+    conferenceKeysToAttend = ndb.StringProperty(repeated=True)
+    sessionKeysWishlist = ndb.StringProperty(repeated=True)
 
 
 class ProfileMiniForm(messages.Message):
@@ -58,6 +59,8 @@ class ProfileForm(messages.Message):
     conferenceKeysToAttend = messages.StringField(5, repeated=True)
     sessionKeysWishlist = messages.StringField(6, repeated=True)
 
+
+# - - - TeeShirt related classes - - - - - - - - - - - - - - - - - - -
 
 class TeeShirtSize(messages.Enum):
 
@@ -81,7 +84,8 @@ class TeeShirtSize(messages.Enum):
 
 class TeeShirtSizeForm(messages.Message):
 
-    """TeeShirtSizeForm -- amount of t-shirts needed for each conference outbound form message"""  # noqa
+    """TeeShirtSizeForm -- outbound message which describes the
+    amount of t-shirts, grouped by size, needed for each conference"""  # noqa
     NOT_SPECIFIED = messages.IntegerField(1, default=0)
     XS_M = messages.IntegerField(2, default=0)
     XS_W = messages.IntegerField(3, default=0)
@@ -98,6 +102,8 @@ class TeeShirtSizeForm(messages.Message):
     XXXL_M = messages.IntegerField(14, default=0)
     XXXL_W = messages.IntegerField(15, default=0)
 
+
+# - - - Conference related classes - - - - - - - - - - - - - - - - - - -
 
 class Conference(ndb.Model):
 
