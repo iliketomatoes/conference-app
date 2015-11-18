@@ -113,6 +113,7 @@ EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 
 MEMCACHE_ANNOUNCEMENTS_KEY = 'RECENT ANNOUNCEMENTS'
+MEMCACHE_SPEAKERS_KEY = 'FEATURED SPEAKERS'
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -443,6 +444,7 @@ class ConferenceApi(remote.Service):
                       http_method='GET', name='filterPlayground')
     def filterPlayground(self, request):
         q = Conference.query()
+
         # simple filter usage:
         # q = q.filter(Conference.city == "Paris")
 
@@ -552,7 +554,7 @@ class ConferenceApi(remote.Service):
     @staticmethod
     def _cacheAnnouncement():
         """Create Announcement & assign to memcache; used by
-        memcache cron job & putAnnouncement().
+        memcache cron job.
         """
         confs = Conference.query(ndb.AND(
             Conference.seatsAvailable <= 5,
@@ -716,6 +718,7 @@ class ConferenceApi(remote.Service):
                 raise endpoints.BadRequestException(
                     "Speaker 'e-mail' field cannot be empty"
                 )
+
             # Add the websafe session key to the speaker objects
             # and return the websafe speaker key
             wssk = self._addSessionToSpeaker(s_key, speaker)
@@ -736,6 +739,12 @@ class ConferenceApi(remote.Service):
 
         # create Session
         Session(**data).put()
+
+        # Send confirmation email to the conference creator
+        taskqueue.add(
+            params={'session': s_key.urlsafe()},
+            url='/tasks/set_featured_speaker'
+        )
 
         # return SessionForm object
         return self._copySessionToForm(s_key.get())
@@ -975,7 +984,7 @@ class ConferenceApi(remote.Service):
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % wsck)
 
-        # Get sessions for the given conference, filtered by type
+        # Get sessions which start before 7pm for the given conference
         q = Session.query(ancestor=c_key).\
             filter(Session.startTime < 1900).\
             order(Session.startTime).\
@@ -995,6 +1004,33 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=filteredSessions
         )
+
+# - - - Task 4: Featured Speaker - - - - - - - - - - - - - - - - -
+
+    @staticmethod
+    def _cacheFeaturedSpeaker(websafeSessionKey):
+        """Create Featured Speaker & assign to memcache; used by
+        memcache cron job."""
+        if confs:
+            # If there are almost sold out conferences,
+            # format announcement and set it in memcache
+            announcement = '%s %s' % (
+                'Last chance to attend! The following conferences '
+                'are nearly sold out:',
+                ', '.join(conf.name for conf in confs))
+            memcache.set(MEMCACHE_SPEAKERS_KEY, speaker)
+
+        return speaker
+
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+                      path='conference/getFeaturedSpeaker',
+                      http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Get featured speakers."""
+        speaker = memcache.get(MEMCACHE_SPEAKERS_KEY)
+        if not speaker:
+            speaker = ''
+        return StringMessage(data=speaker)
 
 # registers API
 api = endpoints.api_server([ConferenceApi])
