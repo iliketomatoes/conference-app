@@ -28,10 +28,10 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
 
 class SetFeaturedtSpeaker(webapp2.RequestHandler):
 
-    def get(self):
+    def post(self):
         """Set Featured Speaker in Memcache."""
-        # Web safe session key
         wssk = self.request.get('session')
+        print wssk
         ConferenceApi._cacheFeaturedSpeaker(wssk)
 
 

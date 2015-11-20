@@ -742,7 +742,7 @@ class ConferenceApi(remote.Service):
 
         # Send confirmation email to the conference creator
         taskqueue.add(
-            params={'session': s_key.urlsafe()},
+            params={'session': str(s_key.urlsafe())},
             url='/tasks/set_featured_speaker'
         )
 
@@ -974,7 +974,7 @@ class ConferenceApi(remote.Service):
         name='getSessionsILike'
     )
     def getSessionsILike(self, request):
-        """Get all the sessions that starts before 7pm and 
+        """Get all the sessions that starts before 7pm and
         that are not workshops, for a given conference"""
         # get Conference object from request; bail if not found
         wsck = request.websafeConferenceKey
@@ -1011,16 +1011,53 @@ class ConferenceApi(remote.Service):
     def _cacheFeaturedSpeaker(websafeSessionKey):
         """Create Featured Speaker & assign to memcache; used by
         memcache cron job."""
-        if confs:
-            # If there are almost sold out conferences,
-            # format announcement and set it in memcache
-            announcement = '%s %s' % (
-                'Last chance to attend! The following conferences '
-                'are nearly sold out:',
-                ', '.join(conf.name for conf in confs))
+
+        featuredSpeaker = {}
+
+        # Get session
+        new_s_key = ndb.Key(urlsafe=websafeSessionKey)
+        new_session = new_s_key.get()
+        if not new_session:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % websafeSessionKey)
+
+        # Retrieve conference parent's key
+        c_key = new_s_key.parent()
+        conference = c_key.get()
+
+        # Get all the sessions for the given conference
+        q = Session.query(ancestor=c_key).fetch()
+
+        # Set an empty dictionary to hold the new session
+        # speakers' websafe key
+        new_speakerKeys = {}
+
+        # Init each key with a 0 value inside that dictionary
+        for speaker in new_session.speakers:
+            if speaker.websafeSpeakerKey not in new_speakerKeys:
+                new_speakerKeys[speaker.websafeSpeakerKey] = 0
+
+        # check if new speakers are attending more than one
+        # session in the same conference
+        for session in q:
+            for speaker in session.speakers:
+                if speaker.websafeSpeakerKey in new_speakerKeys:
+                    new_speakerKeys[speaker.websafeSpeakerKey] += 1
+                    if new_speakerKeys[speaker.websafeSpeakerKey] > 1:
+                        featuredSpeaker['name'] = speaker.name
+                        featuredSpeaker['email'] = speaker.email
+                        break
+
+        if any(featuredSpeaker):
+            # If there is a featured speaker we put it in the memcache
+            speaker = 'Come and listen to the best speakers! %s, %s, %s %s' % (
+                featuredSpeaker['name'],
+                featuredSpeaker['email'],
+                'is going to attend the: ',
+                conference.name + ' conference!')
             memcache.set(MEMCACHE_SPEAKERS_KEY, speaker)
 
-        return speaker
+        return featuredSpeaker
 
     @endpoints.method(message_types.VoidMessage, StringMessage,
                       path='conference/getFeaturedSpeaker',
