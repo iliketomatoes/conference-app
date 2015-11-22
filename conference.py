@@ -52,7 +52,7 @@ from models import StringMessage
 from models import Session
 from models import SessionForm
 from models import SessionForms
-from models import SessionSpeaker
+from models import SpeakerProperty
 from models import SpeakerForm
 from models import Speaker
 from models import SessionType
@@ -621,15 +621,13 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(sess, field.name):
-                if field.name == 'speakers':
-                    for speaker in sess.speakers:
-                        sf.speakers.append(
-                            SpeakerForm(
-                                name=speaker.name,
-                                email=speaker.email,
-                                websafeSpeakerKey=speaker.websafeSpeakerKey,
-                            )
-                        )
+                if field.name == 'speaker':
+                    sf.speaker = SpeakerForm(
+                        name=sess.speaker.name,
+                        email=sess.speaker.email,
+                        websafeSpeakerKey=sess.speaker.websafeSpeakerKey,
+                    )
+
                 # convert sessionType string to Enum
                 elif field.name == 'sessionType':
                     setattr(
@@ -705,33 +703,24 @@ class ConferenceApi(remote.Service):
         s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
 
-        # In the unlikely case that the same speaker gets listed twice
-        # in the same session, we make sure to take it just once
-        speakerForms = {x.email: x for x in data['speakers']}.values()
-
-        # Create the SessionSpeaker objects which will be appended
-        # to the Session object
-        speakerObjects = []
-        for speaker in speakerForms:
-            # check whether the e-mail field is an empty string
-            if not speaker.email.strip():
-                raise endpoints.BadRequestException(
-                    "Speaker 'e-mail' field cannot be empty"
-                )
-
-            # Add the websafe session key to the speaker objects
-            # and return the websafe speaker key
-            wssk = self._addSessionToSpeaker(s_key, speaker)
-            speakerObjects.append(SessionSpeaker(
-                name=speaker.name,
-                email=speaker.email,
-                websafeSpeakerKey=wssk
-            )
+        # check whether the e-mail field is an empty string
+        if not data['speaker'].email.strip():
+            raise endpoints.BadRequestException(
+                "Speaker 'e-mail' field cannot be empty"
             )
 
-        # Overwrite the SpeakerForm object list with
-        # the SessionSpeaker object list
-        data['speakers'] = speakerObjects
+        # Add the websafe session key to the speaker object
+        # and return the websafe speaker key
+        wssk = self._addSessionToSpeaker(s_key, data['speaker'])
+        speaker = SpeakerProperty(
+            name=data['speaker'].name,
+            email=data['speaker'].email,
+            websafeSpeakerKey=wssk
+        )
+
+        # Overwrite the inbound SpeakerForm object with
+        # the SpeakerProperty object
+        data['speaker'] = speaker
 
         # Get rid of useless field. Session object has not such fields
         del data['websafeConferenceKey']
@@ -740,7 +729,7 @@ class ConferenceApi(remote.Service):
         # create Session
         Session(**data).put()
 
-        # Send confirmation email to the conference creator
+        # Set a new featured speaker, if any
         taskqueue.add(
             params={'session': str(s_key.urlsafe())},
             url='/tasks/set_featured_speaker'
@@ -1029,31 +1018,26 @@ class ConferenceApi(remote.Service):
         q = Session.query(ancestor=c_key).fetch()
 
         # Set an empty dictionary to hold the new session
-        # speakers' websafe key
-        new_speakerKeys = {}
-
-        # Init each key with a 0 value inside that dictionary
-        for speaker in new_session.speakers:
-            if speaker.websafeSpeakerKey not in new_speakerKeys:
-                new_speakerKeys[speaker.websafeSpeakerKey] = 0
+        # speaker's websafe key and init it to 0
+        new_speakerKey = {}
+        new_speakerKey[new_session.speaker.websafeSpeakerKey] = 0
 
         # check if new speakers are attending more than one
         # session in the same conference
         for session in q:
-            for speaker in session.speakers:
-                if speaker.websafeSpeakerKey in new_speakerKeys:
-                    new_speakerKeys[speaker.websafeSpeakerKey] += 1
-                    if new_speakerKeys[speaker.websafeSpeakerKey] > 1:
-                        featuredSpeaker['name'] = speaker.name
-                        featuredSpeaker['email'] = speaker.email
-                        break
+            if session.speaker.websafeSpeakerKey in new_speakerKey:
+                new_speakerKey[session.speaker.websafeSpeakerKey] += 1
+                if new_speakerKey[session.speaker.websafeSpeakerKey] > 1:
+                    featuredSpeaker['name'] = session.speaker.name
+                    featuredSpeaker['email'] = session.speaker.email
+                    break
 
         if any(featuredSpeaker):
             # If there is a featured speaker we put it in the memcache
             speaker = 'Come and listen to the best speakers! %s, %s, %s %s' % (
                 featuredSpeaker['name'],
                 featuredSpeaker['email'],
-                'is going to attend the: ',
+                'is going to attend the:',
                 conference.name + ' conference!')
             memcache.set(MEMCACHE_SPEAKERS_KEY, speaker)
 
@@ -1066,7 +1050,7 @@ class ConferenceApi(remote.Service):
         """Get featured speakers."""
         speaker = memcache.get(MEMCACHE_SPEAKERS_KEY)
         if not speaker:
-            speaker = ''
+            speaker = 'There are no featured speakers'
         return StringMessage(data=speaker)
 
 # registers API

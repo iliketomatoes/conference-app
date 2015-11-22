@@ -37,7 +37,7 @@ App Engine application for the Udacity training course.
 ### Session and Speaker implementation:
 
 Two models have been implemented to meet the Task-1 goals: Session and Speaker.
-A structured property named SessionSpeaker has been used inside the Session's model.
+A structured property named SpeakerProperty has been used inside the Session's model.
 
 Each Session object is stored as a Conference object's child. The only required property to
 define when creating a new Session object is the *name* property.

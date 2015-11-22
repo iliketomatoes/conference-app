@@ -166,9 +166,9 @@ class StringMessage(messages.Message):
 
 # - - - Session related classes - - - - - - - - - - - - - - - - - - -
 
-class SessionSpeaker(ndb.Model):
+class SpeakerProperty(ndb.Model):
 
-    """SessionSpeaker -- Speaker structured property for Session model"""
+    """SpeakerProperty -- Speaker structured property for Session model"""
     email = ndb.StringProperty(required=True)
     name = ndb.StringProperty()
     websafeSpeakerKey = ndb.StringProperty()
@@ -179,7 +179,7 @@ class Session(ndb.Model):
     """Conference -- Conference object"""
     name = ndb.StringProperty(required=True)
     highlights = ndb.StringProperty()
-    speakers = ndb.StructuredProperty(SessionSpeaker, repeated=True)
+    speaker = ndb.StructuredProperty(SpeakerProperty)
     date = ndb.DateProperty()
     duration = ndb.IntegerProperty()
     startTime = ndb.IntegerProperty()  # Military time notation
@@ -195,7 +195,7 @@ class Speaker(ndb.Model):
 
 class SpeakerForm(messages.Message):
 
-    """SpeakerForm -- Speaker outbound form message"""
+    """SpeakerForm -- Speaker outbound and inbound form message"""
     name = messages.StringField(1)
     email = messages.StringField(2, required=True)
     websafeSpeakerKey = messages.StringField(3)
@@ -203,10 +203,10 @@ class SpeakerForm(messages.Message):
 
 class SessionForm(messages.Message):
 
-    """SessionForm -- Session outbound form message"""
+    """SessionForm -- Session outbound and inbound form message"""
     name = messages.StringField(1)
     highlights = messages.StringField(2)
-    speakers = messages.MessageField(SpeakerForm, 3, repeated=True)
+    speaker = messages.MessageField(SpeakerForm, 3)
     date = messages.StringField(4)
     duration = messages.IntegerField(5)
     startTime = messages.IntegerField(6)
