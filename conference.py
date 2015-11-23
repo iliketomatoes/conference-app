@@ -896,7 +896,7 @@ class ConferenceApi(remote.Service):
         name='getSessionsByDate'
     )
     def getSessionsByDate(self, request):
-        """Get sessions on a given day"""
+        """Get sessions on a given date (ISO format)."""
         date = None
 
         if request.date:
