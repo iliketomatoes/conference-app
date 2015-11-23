@@ -66,7 +66,7 @@ I added two API endpoints which perform two additional query types:
 
 1. **getSessionsByDate**, which accepts an ISO format date (YYYY-MM-DD) as only parameter and returns a list with all the sessions that will take place on that date.
 
-2. **getTshirtsByConference**, which accepts a websafe conference key as only parameter and returns an object containing the amount of t-shirts needed for each size ({*t-shirt size*: *amount*,}).
+2. **getTshirtsByConference**, which accepts a websafe conference key as only parameter and returns an object containing the amount of t-shirts needed for each size ({*t-shirt size*: *amount*,}), calculated on the group of users attending that conference. 
 
 ### Query problem
 
